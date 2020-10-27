@@ -1,28 +1,35 @@
-use crate::bucket::{load_all_buckets, Bucket, GeoLocationTime, Pointers};
-use crate::msg::{GoogleTakeoutHistory, QueryMsg};
+use std::cmp::Ordering;
+use std::collections::HashMap;
+
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, Querier, StdResult, Storage,
+    Api, Binary, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage,
 };
+use geohash::{encode, Coordinate};
+
+use crate::bucket::{load_all_buckets, Bucket, GeoLocationTime, Pointers};
+use crate::msg::GoogleTakeoutHistory;
+use crate::trie::MyTrie;
 
 pub const DISTANCE: f64 = 10.0; // in meters
 pub const EARTH_RADIUS: f64 = 6371000.0; // in meters
 pub const OVERLAP_TIME: u64 = 1000 * 60 * 5;
+
 pub fn add_data_points<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
     data_points: Vec<GeoLocationTime>,
 ) -> StdResult<HandleResponse> {
-    // let pointers = Pointers::load(&deps.storage)?;
-    //
-    // for dp in data_points {
-    //     if let Some(bucket) = pointers.find_bucket(dp.timestamp_ms) {
-    //         let mut dis = Bucket::load(&deps.storage, &bucket)?;
-    //
-    //         dis.insert_data_point(dp);
-    //
-    //         dis.store(&mut deps.storage, &bucket);
-    //     }
-    // }
+    let pointers = Pointers::load(&deps.storage)?;
+
+    for dp in data_points {
+        if let Some(bucket) = pointers.find_bucket(dp.timestamp_ms) {
+            let mut dis = Bucket::load(&deps.storage, &bucket)?;
+
+            dis.insert_data_point(dp);
+
+            dis.store(&mut deps.storage, &bucket)?;
+        }
+    }
 
     Ok(HandleResponse::default())
 }
@@ -36,9 +43,20 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
 
     let mut buckets = load_all_buckets(&deps.storage)?;
 
+    let mut trie = MyTrie::load(&deps.storage)?;
+
     for dp in data_points.locations {
         if let Some(bucket) = pointers.find_bucket(dp.timestampMs.u128() as u64) {
             //let mut dis = Bucket::load(&deps.storage, &bucket)?;
+            let c = Coordinate {
+                x: dp.longitudeE7 as f64 / 1e7,
+                y: dp.latitudeE7 as f64 / 1e7,
+            };
+            let ghash = encode(c, 9usize).map_err(|_| {
+                StdError::generic_err(format!("Cannot encode data to geohash ({}, {})", c.x, c.y))
+            })?;
+
+            store_geohash(&mut trie, ghash);
 
             buckets
                 .get_mut(&bucket)
@@ -48,8 +66,10 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
     }
 
     for (name, b) in buckets {
-        b.store(&mut deps.storage, &name);
+        b.store(&mut deps.storage, &name)?;
     }
+
+    trie.store(&mut deps.storage)?;
 
     Ok(HandleResponse::default())
 }
@@ -62,7 +82,7 @@ pub fn match_data_point<S: Storage, A: Api, Q: Querier>(
     let mut geo_overlap: Vec<GeoLocationTime> = Vec::default();
 
     if let Some(bucket) = pointers.find_bucket(data_point.timestamp_ms) {
-        let mut dis = Bucket::load(&deps.storage, &bucket)?;
+        let dis = Bucket::load(&deps.storage, &bucket)?;
 
         let time_overlap = dis.search(
             data_point.timestamp_ms,
@@ -111,4 +131,67 @@ fn match_location(e: &GeoLocationTime, d: &GeoLocationTime) -> bool {
         }
     }
     false
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct KeyVal(pub String, pub u32);
+
+impl PartialOrd for KeyVal {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for KeyVal {
+    fn eq(&self, other: &Self) -> bool {
+        &self.1 == &other.1
+    }
+}
+impl Ord for KeyVal {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.1 > other.1 {
+            true => Ordering::Greater,
+            false => match self.1 == other.1 {
+                true => Ordering::Equal,
+                false => Ordering::Less,
+            },
+        }
+    }
+}
+
+impl Eq for KeyVal {}
+
+impl ToString for KeyVal {
+    fn to_string(&self) -> String {
+        return format!("{} : {}", self.0, self.1);
+    }
+}
+
+pub fn cluster(t: &MyTrie, depth: usize, zones: usize) -> Vec<KeyVal> {
+    let mut hmap = HashMap::<String, u32>::new();
+    let mut commons: Vec<KeyVal> = vec![];
+
+    for _ in 0..zones {
+        commons.push(KeyVal::default());
+    }
+
+    t.find_most_common(depth, &mut hmap);
+
+    for (k, v) in hmap.iter() {
+        if v > &commons[zones].1 {
+            commons.pop();
+            commons.push(KeyVal(k.clone(), v.clone()));
+            commons.sort_unstable();
+        }
+    }
+
+    commons
+}
+
+fn store_geohash(mytrie: &mut MyTrie, hash: String) {
+    if let Some(val) = mytrie.0.get_mut(&hash) {
+        *val += 1;
+    } else {
+        mytrie.0.insert(hash, 1);
+    }
 }

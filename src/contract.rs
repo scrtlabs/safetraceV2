@@ -1,18 +1,18 @@
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage,
+    Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdResult, Storage,
 };
 
 use crate::bucket::initialize_buckets;
-use crate::data::{add_data_points, add_google_data, match_data_point};
-use crate::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::data::{add_data_points, add_google_data, cluster, match_data_point};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::trie::MyTrie;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    env: Env,
+    _env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    initialize_buckets(&mut deps.storage, msg.start_time);
+    initialize_buckets(&mut deps.storage, msg.start_time)?;
 
     Ok(InitResponse::default())
 }
@@ -34,23 +34,34 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::MatchDataPoint { data_point } => match_data_point(deps, data_point),
-        QueryMsg::HotSpot {} => Ok(Binary::default()),
+        QueryMsg::HotSpot {} => hotspots(deps),
     }
+}
+
+pub fn hotspots<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Binary> {
+    let trie = MyTrie::load(&deps.storage)?;
+
+    let res = cluster(&trie, 7, 10);
+
+    return Ok(Binary::from(format!("{:?}", res).as_bytes()));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::contract::init;
-    use crate::data::add_google_data;
-    use crate::msg::HandleMsg::ImportGoogleLocations;
-    use crate::msg::InitMsg;
+    use std::fs::File;
+    use std::io::Read;
+    use std::time::{Duration, Instant};
+
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{Coin, Env, Extern, HumanAddr, InitResponse, MemoryStorage, StdResult};
     use serde::{Deserialize, Serialize};
     use serde_json;
-    use std::fs::File;
-    use std::io::Read;
-    use std::time::{Duration, Instant};
+
+    use crate::contract::init;
+    use crate::data::add_google_data;
+    use crate::msg::HandleMsg::ImportGoogleLocations;
+    use crate::msg::InitMsg;
+
     pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
     pub fn init_deps(

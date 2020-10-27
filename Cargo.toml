@@ -41,7 +41,5 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 rust_decimal = { version = "1.8.1" }
 serde_json = { version = "1.0.57" }
-
-
-
-
+geohash = "0.10.0"
+radix_trie = { version = "0.2", features = ["serde"]}

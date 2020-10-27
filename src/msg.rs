@@ -34,6 +34,7 @@ pub struct GoogleTakeoutHistory {
     pub locations: Vec<GoogleLocation>,
 }
 
+#[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GoogleLocation {
     pub timestampMs: Uint128,

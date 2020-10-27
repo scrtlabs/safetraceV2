@@ -1,20 +1,19 @@
-use self::BucketName::*;
-use bincode2;
-use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdError, StdResult, Storage};
-use cosmwasm_storage::{
-    singleton, singleton_read, PrefixedStorage, ReadonlyPrefixedStorage, ReadonlySingleton,
-    Singleton,
-};
-use schemars::{JsonSchema, Map};
-use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound::Included;
 use std::slice::Iter;
 
+use bincode2;
+use cosmwasm_std::{ReadonlyStorage, StdError, StdResult, Storage};
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use self::BucketName::*;
+
 pub static ONE_DAY: u64 = 1000 * 60 * 60 * 24;
 pub static POINTERS_KEY: &[u8] = b"pointers";
 pub static BUCKETS_KEY: &[u8] = b"buckets";
-pub static RESERVED: usize = 10;
+//pub static RESERVED: usize = 10;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub enum BucketName {
@@ -70,7 +69,7 @@ pub struct Locations(pub Vec<GeoLocationTime>);
 
 impl Default for Locations {
     fn default() -> Self {
-        let mut this: Vec<GeoLocationTime> = vec![];
+        let this: Vec<GeoLocationTime> = vec![];
         //this.reserve(RESERVED);
 
         return Self { 0: this };
@@ -135,7 +134,7 @@ impl Bucket {
 
     pub fn search(&self, start_time: u64, period: u64) -> Vec<GeoLocationTime> {
         let mut in_range: Vec<GeoLocationTime> = Vec::default();
-        for (&k, v) in (&self)
+        for (_, v) in (&self)
             .locations
             .range((Included(&start_time), Included(&(start_time + period))))
         {
