@@ -9,6 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use self::BucketName::*;
+use crate::data::ghash;
 
 pub static ONE_DAY: u64 = 1000 * 60 * 60 * 24;
 pub static POINTERS_KEY: &[u8] = b"pointers";
@@ -88,6 +89,9 @@ impl GeoLocationTime {
     pub fn is_valid(&self) -> bool {
         true
     }
+    pub fn hash(&self) -> StdResult<String> {
+        ghash(self.lng, self.lat)
+    }
 }
 
 // Structs
@@ -98,7 +102,7 @@ pub struct Pointer {
     pub bucket: BucketName,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Bucket {
     pub locations: BTreeMap<u64, Locations>,
 }
@@ -178,6 +182,28 @@ impl Pointers {
         }
         None
     }
+
+    pub fn sort(&mut self) {
+        self.0
+            .sort_unstable_by(|a, b| a.start_time.cmp(&b.start_time))
+    }
+
+    pub fn pop(&mut self) -> Option<Pointer> {
+        self.0.pop()
+    }
+
+    pub fn insert(&mut self, ptr: Pointer) {
+        self.0.push(ptr);
+        self.0.sort();
+    }
+
+    pub fn first(&self) -> Option<&Pointer> {
+        self.0.first()
+    }
+
+    pub fn last(&self) -> Option<&Pointer> {
+        self.0.last()
+    }
 }
 
 pub fn load_all_buckets<S: Storage>(store: &S) -> StdResult<HashMap<BucketName, Bucket>> {
@@ -200,8 +226,7 @@ pub fn initialize_buckets<S: Storage>(store: &mut S, start_time: u64) -> StdResu
         };
         cur_time = cur_time + ONE_DAY + 1;
 
-        pointers.0.push(new_pointer);
+        pointers.insert(new_pointer);
     }
-
     pointers.store(store)
 }

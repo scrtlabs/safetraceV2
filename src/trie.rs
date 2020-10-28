@@ -33,6 +33,20 @@ impl MyTrie {
         Ok(Self::default())
     }
 
+    pub fn remove(&mut self, key: &String) {
+        let mut kill: bool = false;
+        if let Some(val) = self.0.get_mut(key) {
+            if val == 1 {
+                kill = true;
+            } else {
+                *val -= 1
+            }
+        }
+        if kill {
+            self.0.remove(key)
+        }
+    }
+
     pub fn find_most_common(&self, depth: usize, mut hmap: &mut HashMap<String, u32>) {
         for sub in self.0.children() {
             Self::recursive_find_most_common(sub, depth, &mut hmap);

@@ -47,16 +47,7 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
 
     for dp in data_points.locations {
         if let Some(bucket) = pointers.find_bucket(dp.timestampMs.u128() as u64) {
-            //let mut dis = Bucket::load(&deps.storage, &bucket)?;
-            let c = Coordinate {
-                x: dp.longitudeE7 as f64 / 1e7,
-                y: dp.latitudeE7 as f64 / 1e7,
-            };
-            let ghash = encode(c, 9usize).map_err(|_| {
-                StdError::generic_err(format!("Cannot encode data to geohash ({}, {})", c.x, c.y))
-            })?;
-
-            store_geohash(&mut trie, ghash);
+            store_geohash(&mut trie, dp.hash()?);
 
             buckets
                 .get_mut(&bucket)
@@ -131,6 +122,17 @@ fn match_location(e: &GeoLocationTime, d: &GeoLocationTime) -> bool {
         }
     }
     false
+}
+
+pub fn ghash(x: f64, y: f64) -> StdResult<String> {
+    encode(
+        Coordinate {
+            x, // lng
+            y, // lat
+        },
+        9usize,
+    )
+    .map_err(|_| StdError::generic_err(format!("Cannot encode data to geohash ({}, {})", c.x, c.y)))
 }
 
 #[derive(Clone, Debug, Default)]
