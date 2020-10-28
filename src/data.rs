@@ -178,10 +178,10 @@ pub fn cluster(t: &MyTrie, depth: usize, zones: usize) -> Vec<KeyVal> {
     t.find_most_common(depth, &mut hmap);
 
     for (k, v) in hmap.iter() {
-        if v > &commons[zones].1 {
+        if v > &commons.last().unwrap().1 {
             commons.pop();
             commons.push(KeyVal(k.clone(), v.clone()));
-            commons.sort_unstable();
+            commons.sort_unstable_by(|a, b| b.cmp(a));
         }
     }
 

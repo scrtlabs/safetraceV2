@@ -1,10 +1,11 @@
 use cosmwasm_std::{
-    Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdResult, Storage,
+    to_binary, Api, Env, Extern, HandleResponse, InitResponse, Querier, QueryResult, StdResult,
+    Storage,
 };
 
 use crate::bucket::initialize_buckets;
 use crate::data::{add_data_points, add_google_data, cluster, match_data_point};
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, HotSpot, InitMsg, QueryAnswer, QueryMsg};
 use crate::trie::MyTrie;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -28,22 +29,25 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::MatchDataPoint { data_point } => match_data_point(deps, data_point),
         QueryMsg::HotSpot {} => hotspots(deps),
     }
 }
 
-pub fn hotspots<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Binary> {
+pub fn hotspots<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> QueryResult {
     let trie = MyTrie::load(&deps.storage)?;
 
-    let res = cluster(&trie, 7, 10);
+    let res: Vec<HotSpot> = cluster(&trie, 7, 10)
+        .into_iter()
+        .map(|kv| HotSpot {
+            geo_location: kv.0,
+            power: kv.1,
+        })
+        .collect();
 
-    return Ok(Binary::from(format!("{:?}", res).as_bytes()));
+    return to_binary(&QueryAnswer::HotSpotResponse { hot_spots: res });
 }
 
 #[cfg(test)]

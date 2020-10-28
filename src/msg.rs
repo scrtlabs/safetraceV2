@@ -1,7 +1,12 @@
 use crate::bucket::GeoLocationTime;
-use cosmwasm_std::Uint128;
+use crate::data::KeyVal;
+use cosmwasm_std::{Binary, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub type QueryResponse = Binary;
+
+pub type QueryResult = StdResult<QueryResponse>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -23,10 +28,25 @@ pub enum QueryMsg {
     HotSpot {},
 }
 
-// We define a custom struct for each query response
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryAnswer {
+    HotSpotResponse { hot_spots: Vec<HotSpot> },
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CountResponse {
-    pub count: i32,
+pub struct HotSpot {
+    pub geo_location: String,
+    pub power: u32,
+}
+
+impl From<KeyVal> for HotSpot {
+    fn from(that: KeyVal) -> Self {
+        Self {
+            geo_location: that.0,
+            power: that.1,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
