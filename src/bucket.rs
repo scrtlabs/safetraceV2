@@ -194,7 +194,7 @@ impl Pointers {
 
     pub fn insert(&mut self, ptr: Pointer) {
         self.0.push(ptr);
-        self.0.sort();
+        self.sort();
     }
 
     pub fn first(&self) -> Option<&Pointer> {

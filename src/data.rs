@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use cosmwasm_std::{Api, Binary, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage, QueryResult, to_binary};
+use cosmwasm_std::{
+    to_binary, Api, Env, Extern, HandleResponse, Querier, QueryResult, StdError, StdResult, Storage,
+};
 use geohash::{encode, Coordinate};
 
 use crate::bucket::{load_all_buckets, Bucket, GeoLocationTime, Pointers};
-use crate::msg::{QueryAnswer, GoogleTakeoutHistory};
+use crate::msg::{GoogleTakeoutHistory, QueryAnswer};
 use crate::trie::MyTrie;
 
 pub const DISTANCE: f64 = 10.0; // in meters
@@ -74,10 +76,7 @@ pub fn match_data_point<S: Storage, A: Api, Q: Querier>(
         if let Some(bucket) = pointers.find_bucket(dp.timestamp_ms) {
             let dis = Bucket::load(&deps.storage, &bucket)?;
 
-            let time_overlap = dis.search(
-                dp.timestamp_ms,
-                dp.timestamp_ms + OVERLAP_TIME,
-            );
+            let time_overlap = dis.search(dp.timestamp_ms, dp.timestamp_ms + OVERLAP_TIME);
             if time_overlap.len() > 0 {
                 for point in time_overlap {
                     if match_location(&point, &dp) {
@@ -87,7 +86,9 @@ pub fn match_data_point<S: Storage, A: Api, Q: Querier>(
             }
         }
     }
-    to_binary(&QueryAnswer::OverLap { data_ponts: geo_overlap })
+    to_binary(&QueryAnswer::OverLap {
+        data_ponts: geo_overlap,
+    })
 }
 
 fn match_location(e: &GeoLocationTime, d: &GeoLocationTime) -> bool {
@@ -111,7 +112,7 @@ pub fn ghash(x: f64, y: f64) -> StdResult<String> {
         },
         9usize,
     )
-    .map_err(|_| StdError::generic_err(format!("Cannot encode data to geohash ({}, {})", c.x, c.y)))
+    .map_err(|_| StdError::generic_err(format!("Cannot encode data to geohash ({}, {})", x, y)))
 }
 
 #[derive(Clone, Debug, Default)]

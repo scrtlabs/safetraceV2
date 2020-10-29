@@ -1,6 +1,6 @@
 use crate::bucket::GeoLocationTime;
 use crate::data::{ghash, KeyVal};
-use cosmwasm_std::{Binary, StdResult, Uint128, HumanAddr};
+use cosmwasm_std::{HumanAddr, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -23,8 +23,13 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number
-    MatchDataPoint { data_point: Vec<GeoLocationTime> },
-    HotSpot { accuracy: Option<u32>, zones: Option<u32> },
+    MatchDataPoint {
+        data_point: Vec<GeoLocationTime>,
+    },
+    HotSpot {
+        accuracy: Option<u32>,
+        zones: Option<u32>,
+    },
     TimeRange {},
 }
 

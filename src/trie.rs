@@ -36,14 +36,14 @@ impl MyTrie {
     pub fn remove(&mut self, key: &String) {
         let mut kill: bool = false;
         if let Some(val) = self.0.get_mut(key) {
-            if val == 1 {
+            if *val == 1 {
                 kill = true;
             } else {
                 *val -= 1
             }
         }
         if kill {
-            self.0.remove(key)
+            self.0.remove(key);
         }
     }
 

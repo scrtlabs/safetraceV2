@@ -3,14 +3,12 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-use crate::bucket::{initialize_buckets, load_all_buckets, Bucket, Pointer, Pointers, ONE_DAY};
+use crate::bucket::initialize_buckets;
 use crate::data::{add_data_points, add_google_data, cluster, match_data_point};
-use crate::msg::QueryAnswer::DateRange;
 use crate::msg::{HandleMsg, HotSpot, InitMsg, QueryAnswer, QueryMsg};
-use crate::state::{config, State};
+use crate::state::{config, config_read, State};
 use crate::time::{new_day, query_dates};
 use crate::trie::MyTrie;
-use geohash::{encode, Coordinate};
 
 const DEFAULT_ZONES: u32 = 10;
 const DEFAULT_DEPTH: u32 = 7;
@@ -36,10 +34,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
-    let state = config(&mut deps.storage).load()?;
+    let state = config_read(&deps.storage).load()?;
 
     if !state.admin.contains(&env.message.sender) {
-        return Err(throw_gen_err(
+        return Err(StdError::generic_err(
             "You cannot functions from non-admin address".to_string(),
         ));
     }
@@ -104,7 +102,7 @@ pub fn remove_admin<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let mut state = config(&mut deps.storage).load()?;
 
-    if let Some(index) = state.admin.iter().position(&address) {
+    if let Some(index) = state.admin.iter().position(|a| a == &address) {
         state.admin.remove(index);
         config(&mut deps.storage).save(&state)?;
     }

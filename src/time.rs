@@ -1,10 +1,12 @@
-use cosmwasm_std::{to_binary, Storage, Api, Querier, Extern, QueryResult, StdResult, HandleResponse, Env};
+use crate::bucket::{Bucket, Pointer, Pointers, ONE_DAY};
 use crate::msg::QueryAnswer;
-use crate::bucket::{Pointers, Pointer, Bucket, ONE_DAY};
 use crate::trie::MyTrie;
+use cosmwasm_std::{
+    to_binary, Api, Env, Extern, HandleResponse, Querier, QueryResult, StdResult, Storage,
+};
 
 pub fn query_dates<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> QueryResult {
-    let mut pointers = Pointers::load(&deps.storage)?;
+    let pointers = Pointers::load(&deps.storage)?;
 
     let to = pointers.first().unwrap().end_time;
     let from = pointers.last().unwrap().start_time;
@@ -27,8 +29,8 @@ pub fn new_day<S: Storage, A: Api, Q: Querier>(
         bucket: old_day.bucket,
     };
 
-    let mut bucket = Bucket::default();
-    bucket.store(&mut deps.storage, &old_day.bucket);
+    let bucket = Bucket::default();
+    bucket.store(&mut deps.storage, &old_day.bucket)?;
     pointers.insert(new_day);
 
     let mut trie = MyTrie::load(&deps.storage)?;
