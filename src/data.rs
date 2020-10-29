@@ -1,13 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use cosmwasm_std::{
-    Api, Binary, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage,
-};
+use cosmwasm_std::{Api, Binary, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage, QueryResult, to_binary};
 use geohash::{encode, Coordinate};
 
 use crate::bucket::{load_all_buckets, Bucket, GeoLocationTime, Pointers};
-use crate::msg::GoogleTakeoutHistory;
+use crate::msg::{QueryAnswer, GoogleTakeoutHistory};
 use crate::trie::MyTrie;
 
 pub const DISTANCE: f64 = 10.0; // in meters
@@ -67,48 +65,29 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
 
 pub fn match_data_point<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    data_point: GeoLocationTime,
-) -> StdResult<Binary> {
+    data_point: Vec<GeoLocationTime>,
+) -> QueryResult {
     let pointers = Pointers::load(&deps.storage)?;
     let mut geo_overlap: Vec<GeoLocationTime> = Vec::default();
 
-    if let Some(bucket) = pointers.find_bucket(data_point.timestamp_ms) {
-        let dis = Bucket::load(&deps.storage, &bucket)?;
+    for dp in data_point {
+        if let Some(bucket) = pointers.find_bucket(dp.timestamp_ms) {
+            let dis = Bucket::load(&deps.storage, &bucket)?;
 
-        let time_overlap = dis.search(
-            data_point.timestamp_ms,
-            data_point.timestamp_ms + OVERLAP_TIME,
-        );
-        if time_overlap.len() > 0 {
-            for point in time_overlap {
-                if match_location(&point, &data_point) {
-                    geo_overlap.push(point.clone());
+            let time_overlap = dis.search(
+                dp.timestamp_ms,
+                dp.timestamp_ms + OVERLAP_TIME,
+            );
+            if time_overlap.len() > 0 {
+                for point in time_overlap {
+                    if match_location(&point, &dp) {
+                        geo_overlap.push(point.clone());
+                    }
                 }
             }
-        } else {
-            return Ok(Binary::from(
-                format!("No overlapping times found broheim").as_bytes(),
-            ));
         }
-        return if geo_overlap.len() > 0 {
-            Ok(Binary::from(
-                format!(
-                    "Found lots of overlap. You might be sick dawg: {:?}",
-                    geo_overlap[0]
-                )
-                .as_bytes(),
-            ))
-        } else {
-            Ok(Binary::from(
-                format!("No overlapping locations found, broseph",).as_bytes(),
-            ))
-        };
     }
-
-    Ok(Binary::from(
-        format!("Time is either too old, or too recent. Either way, you're all good bruv")
-            .as_bytes(),
-    ))
+    to_binary(&QueryAnswer::OverLap { data_ponts: geo_overlap })
 }
 
 fn match_location(e: &GeoLocationTime, d: &GeoLocationTime) -> bool {

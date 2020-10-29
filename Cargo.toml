@@ -33,8 +33,8 @@ default = []
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { path = "../../GolandProjects/EnigmaBlockchain/cosmwasm/packages/std" }
-cosmwasm-storage = { path = "../../GolandProjects/EnigmaBlockchain/cosmwasm/packages/storage" }
+cosmwasm-std = { path = "../../CLionProjects/SecretNetwork/cosmwasm/packages/std" }
+cosmwasm-storage = { path = "../../CLionProjects/SecretNetwork/cosmwasm/packages/storage" }
 schemars = "0.7"
 bincode2 = "2.0.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

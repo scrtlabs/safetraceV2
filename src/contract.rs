@@ -1,20 +1,31 @@
 use cosmwasm_std::{
-    to_binary, Api, Env, Extern, HandleResponse, InitResponse, Querier, QueryResult, StdError,
-    StdResult, Storage,
+    to_binary, Api, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryResult,
+    StdError, StdResult, Storage,
 };
 
 use crate::bucket::{initialize_buckets, load_all_buckets, Bucket, Pointer, Pointers, ONE_DAY};
 use crate::data::{add_data_points, add_google_data, cluster, match_data_point};
 use crate::msg::QueryAnswer::DateRange;
 use crate::msg::{HandleMsg, HotSpot, InitMsg, QueryAnswer, QueryMsg};
+use crate::state::{config, State};
+use crate::time::{new_day, query_dates};
 use crate::trie::MyTrie;
 use geohash::{encode, Coordinate};
 
+const DEFAULT_ZONES: u32 = 10;
+const DEFAULT_DEPTH: u32 = 7;
+
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
+    let state = State {
+        admin: vec![env.message.sender],
+    };
+
+    config(&mut deps.storage).save(&state)?;
+
     initialize_buckets(&mut deps.storage, msg.start_time)?;
 
     Ok(InitResponse::default())
@@ -25,7 +36,17 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
+    let state = config(&mut deps.storage).load()?;
+
+    if !state.admin.contains(&env.message.sender) {
+        return Err(throw_gen_err(
+            "You cannot functions from non-admin address".to_string(),
+        ));
+    }
+
     match msg {
+        HandleMsg::AddAdmin { address } => add_admin(deps, env, address),
+        HandleMsg::RemoveAdmin { address } => remove_admin(deps, env, address),
         HandleMsg::AddDataPoints { data_points } => add_data_points(deps, env, data_points),
         HandleMsg::NewDay {} => new_day(deps, env),
         HandleMsg::ImportGoogleLocations { data } => add_google_data(deps, env, data),
@@ -35,24 +56,22 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::MatchDataPoint { data_point } => match_data_point(deps, data_point),
-        QueryMsg::HotSpot {} => hotspots(deps),
+        QueryMsg::HotSpot { accuracy, zones } => hotspots(deps, accuracy, zones),
         QueryMsg::TimeRange {} => query_dates(deps),
     }
 }
 
-pub fn query_dates<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> QueryResult {
-    let mut pointers = Pointers::load(&deps.storage)?;
-
-    let to = pointers.first().unwrap().end_time;
-    let from = pointers.last().unwrap().start_time;
-
-    return to_binary(&QueryAnswer::DateRange { from, to });
-}
-
-pub fn hotspots<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> QueryResult {
+pub fn hotspots<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    accuracy: Option<u32>,
+    zones: Option<u32>,
+) -> QueryResult {
     let trie = MyTrie::load(&deps.storage)?;
 
-    let res: Vec<HotSpot> = cluster(&trie, 7, 10)
+    let depth = accuracy.unwrap_or(DEFAULT_ZONES) as usize;
+    let zone_num = zones.unwrap_or(DEFAULT_DEPTH) as usize;
+
+    let res: Vec<HotSpot> = cluster(&trie, depth, zone_num)
         .into_iter()
         .map(|kv| HotSpot {
             geo_location: kv.0,
@@ -63,34 +82,31 @@ pub fn hotspots<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> Query
     return to_binary(&QueryAnswer::HotSpotResponse { hot_spots: res });
 }
 
-pub fn new_day<S: Storage, A: Api, Q: Querier>(
+pub fn add_admin<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
+    address: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let mut pointers = Pointers::load(&deps.storage)?;
+    let mut state = config(&mut deps.storage).load()?;
 
-    let old_day = pointers.pop().unwrap();
-    let old_bucket = Bucket::load(&deps.storage, &old_day.bucket)?;
+    if !state.admin.contains(&address) {
+        state.admin.push(address);
+        config(&mut deps.storage).save(&state)?;
+    }
 
-    let new_day = Pointer {
-        start_time: pointers.first().unwrap().end_time,
-        end_time: pointers.first().unwrap().end_time + ONE_DAY,
-        bucket: old_day.bucket,
-    };
+    Ok(HandleResponse::default())
+}
 
-    let mut bucket = Bucket::default();
-    bucket.store(&mut deps.storage, &old_day.bucket);
-    pointers.insert(new_day);
+pub fn remove_admin<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    address: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let mut state = config(&mut deps.storage).load()?;
 
-    let mut trie = MyTrie::load(&deps.storage)?;
-
-    // might be better to create a trie per day, and aggregate it instead of doing it like this?
-    // either way this only happens once per day, so might be acceptable to take a little more time
-    // but still optimize for fast query
-    for (_, elem) in old_bucket.locations.iter() {
-        for loc in elem.0.iter() {
-            trie.remove(&loc.hash()?);
-        }
+    if let Some(index) = state.admin.iter().position(&address) {
+        state.admin.remove(index);
+        config(&mut deps.storage).save(&state)?;
     }
 
     Ok(HandleResponse::default())

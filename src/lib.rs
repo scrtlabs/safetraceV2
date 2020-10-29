@@ -3,6 +3,8 @@ pub mod contract;
 mod data;
 pub mod msg;
 mod trie;
+mod time;
+mod state;
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
