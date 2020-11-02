@@ -27,10 +27,11 @@ def randomGeo(center, radius):
 
 
 def do():
+
     big = 100000
 
     center = {'latitude': 52.5200, 'longitude': 13.4050}
-    for i in range(100):
+    for i in range(10):
         pts = []
         for _ in range(big):
             pts.append(randomGeo(center, 10000))

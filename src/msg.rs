@@ -1,8 +1,9 @@
 use crate::bucket::GeoLocationTime;
 use crate::data::{ghash, KeyVal};
-use cosmwasm_std::{HumanAddr, StdResult, Uint128};
+use cosmwasm_std::{HumanAddr, StdError, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -69,13 +70,20 @@ pub struct GoogleLocation {
     pub longitudeE7: u64,
 }
 
-impl Into<GeoLocationTime> for GoogleLocation {
-    fn into(self) -> GeoLocationTime {
-        GeoLocationTime {
-            lat: self.latitudeE7 as f64 / 1e7,
-            lng: self.longitudeE7 as f64 / 1e7,
+impl TryInto<GeoLocationTime> for GoogleLocation {
+    type Error = StdError;
+
+    fn try_into(self) -> StdResult<GeoLocationTime> {
+        let geohash = self.hash().map_err(|_| {
+            StdError::generic_err(format!(
+                "failed to create geohash for ({}, {})",
+                self.longitudeE7, self.latitudeE7
+            ))
+        })?;
+        Ok(GeoLocationTime {
+            geohash,
             timestamp_ms: self.timestampMs.u128() as u64,
-        }
+        })
     }
 }
 

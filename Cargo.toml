@@ -31,10 +31,10 @@ default = []
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
-
+# /home/bob/CLionProjects/SecretNetwork
 [dependencies]
-cosmwasm-std = { path = "../../GolandProjects/EnigmaBlockChain/cosmwasm/packages/std" }
-cosmwasm-storage = { path = "../../GolandProjects/EnigmaBlockChain/cosmwasm/packages/storage" }
+cosmwasm-std = { path = "../../CLionProjects/SecretNetwork/cosmwasm/packages/std" }
+cosmwasm-storage = { path = "../../CLionProjects/SecretNetwork/cosmwasm/packages/storage" }
 schemars = "0.7"
 bincode2 = "2.0.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

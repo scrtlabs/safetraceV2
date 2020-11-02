@@ -9,7 +9,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use self::BucketName::*;
-use crate::data::ghash;
+use crate::data::{ghash, HotSpots, KeyVal};
+use crate::msg::HotSpot;
 
 pub static ONE_DAY: u64 = 1000 * 60 * 60 * 24;
 pub static POINTERS_KEY: &[u8] = b"pointers";
@@ -68,6 +69,18 @@ impl Into<&[u8]> for BucketName {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Locations(pub Vec<GeoLocationTime>);
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Times(pub Vec<u64>);
+
+impl Default for Times {
+    fn default() -> Self {
+        let this: Vec<u64> = vec![];
+        //this.reserve(RESERVED);
+
+        return Self { 0: this };
+    }
+}
+
 impl Default for Locations {
     fn default() -> Self {
         let this: Vec<GeoLocationTime> = vec![];
@@ -78,10 +91,15 @@ impl Default for Locations {
 }
 
 // Structs
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, JsonSchema)]
+// #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, JsonSchema)]
+// pub struct GeoLocationTime {
+//     pub lat: f64,
+//     pub lng: f64,
+//     pub timestamp_ms: u64,
+// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GeoLocationTime {
-    pub lat: f64,
-    pub lng: f64,
+    pub geohash: String,
     pub timestamp_ms: u64,
 }
 
@@ -89,9 +107,9 @@ impl GeoLocationTime {
     pub fn is_valid(&self) -> bool {
         true
     }
-    pub fn hash(&self) -> StdResult<String> {
-        ghash(self.lng, self.lat)
-    }
+    // pub fn hash(&self) -> StdResult<String> {
+    //     ghash(self.lng, self.lat)
+    // }
 }
 
 // Structs
@@ -104,7 +122,9 @@ pub struct Pointer {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Bucket {
-    pub locations: BTreeMap<u64, Locations>,
+    //pub locations: BTreeMap<u64, Locations>,
+    pub locations: HashMap<String, Times>,
+    pub hotzones: Vec<KeyVal>,
 }
 
 impl Bucket {
@@ -128,24 +148,46 @@ impl Bucket {
 
         Ok(Self {
             locations: Default::default(),
+            hotzones: Default::default(),
         })
     }
 
     pub fn insert_data_point(&mut self, geotime: GeoLocationTime) {
-        let entry = self.locations.entry(geotime.timestamp_ms).or_default();
-        entry.0.push(geotime);
-    }
+        let entry = self.locations.entry(geotime.geohash.clone()).or_default();
+        entry.0.push(geotime.timestamp_ms);
 
-    pub fn search(&self, start_time: u64, period: u64) -> Vec<GeoLocationTime> {
-        let mut in_range: Vec<GeoLocationTime> = Vec::default();
-        for (_, v) in (&self)
-            .locations
-            .range((Included(&start_time), Included(&(start_time + period))))
-        {
-            in_range.append(&mut v.0.clone());
+        if entry.0.len() as u32 > self.hotzones.last().unwrap().1 {
+            let _ = self.hotzones.pop();
+            self.hotzones
+                .push(KeyVal(geotime.geohash, entry.0.len() as u32));
+            self.hotzones.sort_unstable_by(|a, b| b.cmp(a));
         }
 
-        in_range
+        //if v > &commons.last().unwrap().1 {
+        //             commons.pop();
+        //             commons.push(KeyVal(k.clone(), v.clone()));
+        //             commons.sort_unstable_by(|a, b| b.cmp(a));
+        //         }
+    }
+
+    pub fn match_pos(&self, ghash: &String, time: u64, period: u64) -> bool {
+        // let mut in_range: Vec<GeoLocationTime> = Vec::default();
+        // for (_, v) in (&self)
+        //     .locations
+        //     .range((Included(&start_time), Included(&(start_time + period))))
+        // {
+        //     in_range.append(&mut v.0.clone());
+        // }
+        //
+        // in_range
+        if let Some(times) = self.locations.get(ghash) {
+            for t in &times.0 {
+                if &time > t && time < t + period {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
 

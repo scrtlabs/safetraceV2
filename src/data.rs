@@ -12,6 +12,7 @@ use crate::bucket::{load_all_buckets, Bucket, GeoLocationTime, Pointers};
 use crate::msg::{GoogleTakeoutHistory, HotSpot, QueryAnswer};
 use crate::trie::RecursiveTrie;
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use std::convert::TryInto;
 
 pub const DISTANCE: f64 = 10.0; // in meters
 pub const EARTH_RADIUS: f64 = 6371000.0; // in meters
@@ -77,16 +78,16 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
 
     let mut buckets = load_all_buckets(&deps.storage)?;
 
-    let mut trie = RecursiveTrie::load(&deps.storage)?;
+    //let mut trie = RecursiveTrie::load(&deps.storage)?;
 
     for dp in data_points.locations {
         if let Some(bucket) = pointers.find_bucket(dp.timestampMs.u128() as u64) {
-            store_geohash(&mut trie, dp.hash()?);
+            //store_geohash(&mut trie, dp.hash()?);
 
             buckets
                 .get_mut(&bucket)
                 .unwrap()
-                .insert_data_point(dp.into());
+                .insert_data_point(dp.try_into()?);
         }
     }
 
@@ -94,19 +95,19 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
         b.store(&mut deps.storage, &name)?;
     }
 
-    let res = HotSpots::from_vec(
-        cluster(&trie, 6, 10)
-            .into_iter()
-            .map(|kv| HotSpot {
-                geo_location: kv.0,
-                power: kv.1,
-            })
-            .collect(),
-    );
+    // let res = HotSpots::from_vec(
+    //     cluster(&trie, 6, 10)
+    //         .into_iter()
+    //         .map(|kv| HotSpot {
+    //             geo_location: kv.0,
+    //             power: kv.1,
+    //         })
+    //         .collect(),
+    // );
 
-    res.store(&mut deps.storage)?;
+    //res.store(&mut deps.storage)?;
 
-    trie.store(&mut deps.storage)?;
+    //trie.store(&mut deps.storage)?;
 
     Ok(HandleResponse::default())
 }
@@ -122,14 +123,17 @@ pub fn match_data_point<S: Storage, A: Api, Q: Querier>(
         if let Some(bucket) = pointers.find_bucket(dp.timestamp_ms) {
             let dis = Bucket::load(&deps.storage, &bucket)?;
 
-            let time_overlap = dis.search(dp.timestamp_ms, dp.timestamp_ms + OVERLAP_TIME);
-            if time_overlap.len() > 0 {
-                for point in time_overlap {
-                    if match_location(&point, &dp) {
-                        geo_overlap.push(point.clone());
-                    }
-                }
+            if dis.match_pos(&dp.geohash, dp.timestamp_ms, OVERLAP_TIME) {
+                geo_overlap.push(dp.clone());
             }
+            // let time_overlap = dis.search(dp.timestamp_ms, dp.timestamp_ms + OVERLAP_TIME);
+            // if time_overlap.len() > 0 {
+            //     for point in time_overlap {
+            //         if match_location(&point, &dp) {
+            //             geo_overlap.push(point.clone());
+            //         }
+            //     }
+            // }
         }
     }
     to_binary(&QueryAnswer::OverLap {
@@ -137,18 +141,18 @@ pub fn match_data_point<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn match_location(e: &GeoLocationTime, d: &GeoLocationTime) -> bool {
-    if (e.lat - d.lat).abs() * 111000.0 < DISTANCE * 0.71 {
-        // then we can run a more computationally expensive and precise comparison
-        if (e.lat.sin() * d.lat.sin() + e.lat.cos() * d.lat.cos() * (e.lng - d.lng).cos()).acos()
-            * EARTH_RADIUS
-            < DISTANCE
-        {
-            return true;
-        }
-    }
-    false
-}
+// fn match_location(e: &GeoLocationTime, d: &GeoLocationTime) -> bool {
+//     if (e.lat - d.lat).abs() * 111000.0 < DISTANCE * 0.71 {
+//         // then we can run a more computationally expensive and precise comparison
+//         if (e.lat.sin() * d.lat.sin() + e.lat.cos() * d.lat.cos() * (e.lng - d.lng).cos()).acos()
+//             * EARTH_RADIUS
+//             < DISTANCE
+//         {
+//             return true;
+//         }
+//     }
+//     false
+// }
 
 pub fn ghash(x: f64, y: f64) -> StdResult<String> {
     encode(
@@ -161,7 +165,7 @@ pub fn ghash(x: f64, y: f64) -> StdResult<String> {
     .map_err(|_| StdError::generic_err(format!("Cannot encode data to geohash ({}, {})", x, y)))
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct KeyVal(pub String, pub u32);
 
 impl PartialOrd for KeyVal {
