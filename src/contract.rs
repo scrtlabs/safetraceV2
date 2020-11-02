@@ -1,14 +1,14 @@
+use crate::bucket::initialize_buckets;
+use crate::data::{add_data_points, add_google_data, cluster, match_data_point, HotSpots};
+use crate::msg::{HandleMsg, HotSpot, InitMsg, QueryAnswer, QueryMsg};
+use crate::state::{config, config_read, State};
+use crate::time::{new_day, query_dates};
+use crate::trie::RecursiveTrie;
 use cosmwasm_std::{
     to_binary, Api, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryResult,
     StdError, StdResult, Storage,
 };
-
-use crate::bucket::initialize_buckets;
-use crate::data::{add_data_points, add_google_data, cluster, match_data_point};
-use crate::msg::{HandleMsg, HotSpot, InitMsg, QueryAnswer, QueryMsg};
-use crate::state::{config, config_read, State};
-use crate::time::{new_day, query_dates};
-use crate::trie::MyTrie;
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_ZONES: u32 = 10;
 const DEFAULT_DEPTH: u32 = 7;
@@ -64,20 +64,21 @@ pub fn hotspots<S: Storage, A: Api, Q: Querier>(
     accuracy: Option<u32>,
     zones: Option<u32>,
 ) -> QueryResult {
-    let trie = MyTrie::load(&deps.storage)?;
+    //let trie = RecursiveTrie::load(&deps.storage)?;
 
-    let depth = accuracy.unwrap_or(DEFAULT_ZONES) as usize;
-    let zone_num = zones.unwrap_or(DEFAULT_DEPTH) as usize;
+    let depth = accuracy.unwrap_or(DEFAULT_DEPTH) as usize;
+    let zone_num = zones.unwrap_or(DEFAULT_ZONES) as usize;
 
-    let res: Vec<HotSpot> = cluster(&trie, depth, zone_num)
-        .into_iter()
-        .map(|kv| HotSpot {
-            geo_location: kv.0,
-            power: kv.1,
-        })
-        .collect();
+    let res = HotSpots::load(&deps.storage)?;
+    // let res: Vec<HotSpot> = cluster(&trie, depth, zone_num)
+    //     .into_iter()
+    //     .map(|kv| HotSpot {
+    //         geo_location: kv.0,
+    //         power: kv.1,
+    //     })
+    //     .collect();
 
-    return to_binary(&QueryAnswer::HotSpotResponse { hot_spots: res });
+    return to_binary(&QueryAnswer::HotSpotResponse { hot_spots: res.0 });
 }
 
 pub fn add_admin<S: Storage, A: Api, Q: Querier>(

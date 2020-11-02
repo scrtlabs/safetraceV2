@@ -2,7 +2,6 @@
 
 function wait_for_tx() {
     until (./secretcli q tx "$1"); do
-        echo "$2"
         sleep 5
     done
 }
@@ -15,7 +14,7 @@ secretcli config indent true
 secretcli config trust-node true
 secretcli config node tcp://localhost:26657
 
-data_file="data/datamsg2.json"
+data_file="data/points2.json"
 docker_name=secretdev
 base_dir=.
 label=$(date +"%T")
@@ -31,23 +30,27 @@ code_id=$(secretcli query compute list-code | jq '.[-1]."id"')
 
 docker exec -it $docker_name secretcli tx compute instantiate $code_id '{"start_time": 1600129528950}' --label $label --from a --gas 2000000 -b block -y
 
-address=$(docker exec -it $docker_name secretcli query compute list-contract-by-code $code_id | jq '.[-1].address')
+addr=$(docker exec -it $docker_name secretcli query compute list-contract-by-code $code_id | jq '.[-1].address')
+address=${addr:1:45}
 
-echo "Deployed at address: $address"
+docker cp "$data_file" "$docker_name:/data.json"
 
-
-for i in {1..5}
+for i in {0..10}
 do
+  data_file="data/points$i.json"
   echo "Uploading data... $i"
-
   docker cp "$data_file" "$docker_name:/data.json"
-
   export STORE_TX_HASH=$(
         docker exec -it secretdev secretcli tx compute execute --label $label --file /data.json --from a --gas 900000000 -y |
         jq -r .txhash
   )
+
+  wait_for_tx "$STORE_TX_HASH" "Waiting for store to finish on-chain..."
+
 done
 
-wait_for_tx "$STORE_TX_HASH" "Waiting for store to finish on-chain..."
 
-docker exec -it secretdev secretcli q compute query $address '{"hot_spot": {}}'
+result=$(docker exec -it "$docker_name" secretcli q compute query "$address" '{"hot_spot": {"accuracy": 6}}')
+
+echo "$result"
+echo "Deployed at address: $address"

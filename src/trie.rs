@@ -9,9 +9,17 @@ pub static TRIE_KEY: &[u8] = b"mytrie";
 pub static TRIE_ID: &[u8] = b"mytrie";
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct MyTrie(pub Trie<String, u32>);
+pub struct Leaf {
+    pub sum_children: u32,
+    pub value: u32,
+}
 
-impl MyTrie {
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct RecursiveTrie(pub Trie<String, Leaf>);
+
+/// A radix-trie that saves the sum of all child values as a part of the node data. The reason for this is to
+/// make queries just a tiny bit faster (avoiding those last expensive recursion steps)
+impl RecursiveTrie {
     pub fn store<S: Storage>(&self, store: &mut S) -> StdResult<()> {
         let mut config_store = PrefixedStorage::new(TRIE_KEY, store);
         let as_bytes =
@@ -33,13 +41,46 @@ impl MyTrie {
         Ok(Self::default())
     }
 
+    pub fn insert(&mut self, key: String, val: u32) {
+        self.0.map_with_default(
+            key.clone(),
+            |leaf| leaf.value += val,
+            Leaf {
+                sum_children: 0,
+                value: val,
+            },
+        );
+        self.update_ancestor(&key, val);
+    }
+
+    pub fn update_ancestor(&mut self, key: &String, val: u32) {
+        let mut more = false;
+        let mut next_key: String = String::default();
+
+        if let Some(res) = self.0.get_ancestor(key) {
+            //println!("Started with key: {}, got ancestor with key: {}", key, res.key().unwrap());
+            if res.key().unwrap() != key {
+                next_key = res.key().unwrap().clone();
+                more = true;
+            }
+        }
+        if more {
+            if let Some(mut a) = self.0.subtrie_mut(&next_key) {
+                a.value_mut().unwrap().sum_children += val;
+            }
+        }
+        if more {
+            self.update_ancestor(&next_key, val);
+        }
+    }
+
     pub fn remove(&mut self, key: &String) {
         let mut kill: bool = false;
         if let Some(val) = self.0.get_mut(key) {
-            if *val == 1 {
+            if (*val).value == 1 {
                 kill = true;
             } else {
-                *val -= 1
+                (*val).value -= 1
             }
         }
         if kill {
@@ -54,23 +95,36 @@ impl MyTrie {
     }
 
     fn recursive_find_most_common(
-        t: SubTrie<String, u32>,
+        t: SubTrie<String, Leaf>,
         depth: usize,
         mut hmap: &mut HashMap<String, u32>,
     ) {
         if let Some(key) = t.key() {
             if key.len() >= depth {
-                if let Some(res) = hmap.get_mut(&key[..depth]) {
-                    *res += t.get(key).unwrap().unwrap();
+                let leaf = t.get(key).unwrap().unwrap();
+                let geohash = (&key[..depth]).to_string();
+                if hmap.contains_key(&geohash) {
+                    *(hmap.get_mut(&geohash).unwrap()) += leaf.sum_children + leaf.value;
                 } else {
-                    hmap.insert((&key[..depth]).to_string(), *t.get(key).unwrap().unwrap());
+                    hmap.insert(geohash, leaf.sum_children + leaf.value);
+                }
+            // if let Some(res) = hmap.get_mut(&key[..depth]) {
+            //     *res += t.get(key).unwrap().unwrap().value;
+            // } else {
+            //     hmap.insert(
+            //         (&key[..depth]).to_string(),
+            //         (*t.get(key).unwrap().unwrap()).value,
+            //     );
+            // }
+            } else {
+                for sub in t.children() {
+                    Self::recursive_find_most_common(sub, depth, &mut hmap);
                 }
             }
-            println!("{}, len: {}", key, key.len())
-        }
-
-        for sub in t.children() {
-            Self::recursive_find_most_common(sub, depth, &mut hmap);
+        } else {
+            for sub in t.children() {
+                Self::recursive_find_most_common(sub, depth, &mut hmap);
+            }
         }
     }
 }

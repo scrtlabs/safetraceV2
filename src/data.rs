@@ -1,18 +1,52 @@
+use bincode2;
+use cosmwasm_std::{
+    to_binary, Api, Env, Extern, HandleResponse, Querier, QueryResult, ReadonlyStorage, StdError,
+    StdResult, Storage,
+};
+use geohash::{encode, Coordinate};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use cosmwasm_std::{
-    to_binary, Api, Env, Extern, HandleResponse, Querier, QueryResult, StdError, StdResult, Storage,
-};
-use geohash::{encode, Coordinate};
-
 use crate::bucket::{load_all_buckets, Bucket, GeoLocationTime, Pointers};
-use crate::msg::{GoogleTakeoutHistory, QueryAnswer};
-use crate::trie::MyTrie;
+use crate::msg::{GoogleTakeoutHistory, HotSpot, QueryAnswer};
+use crate::trie::RecursiveTrie;
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 
 pub const DISTANCE: f64 = 10.0; // in meters
 pub const EARTH_RADIUS: f64 = 6371000.0; // in meters
 pub const OVERLAP_TIME: u64 = 1000 * 60 * 5;
+pub const HOTSPOTS_ID: &[u8] = b"HOTSPOTS_ID";
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct HotSpots(pub Vec<HotSpot>);
+
+impl HotSpots {
+    pub fn from_vec(v: Vec<HotSpot>) -> Self {
+        Self(v)
+    }
+
+    pub fn store<S: Storage>(&self, store: &mut S) -> StdResult<()> {
+        let mut config_store = PrefixedStorage::new(HOTSPOTS_ID, store);
+        let as_bytes =
+            bincode2::serialize(&self).map_err(|_| StdError::generic_err("Error packing trie"))?;
+
+        config_store.set(HOTSPOTS_ID, &as_bytes);
+
+        Ok(())
+    }
+
+    pub fn load<S: Storage>(store: &S) -> StdResult<Self> {
+        let config_store = ReadonlyPrefixedStorage::new(HOTSPOTS_ID, store);
+        if let Some(trie) = config_store.get(HOTSPOTS_ID) {
+            let ptrs: Self = bincode2::deserialize(&trie)
+                .map_err(|_| StdError::generic_err("Error deserializing trie"))?;
+            return Ok(ptrs);
+        }
+
+        Ok(Self::default())
+    }
+}
 
 pub fn add_data_points<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -43,7 +77,7 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
 
     let mut buckets = load_all_buckets(&deps.storage)?;
 
-    let mut trie = MyTrie::load(&deps.storage)?;
+    let mut trie = RecursiveTrie::load(&deps.storage)?;
 
     for dp in data_points.locations {
         if let Some(bucket) = pointers.find_bucket(dp.timestampMs.u128() as u64) {
@@ -59,6 +93,18 @@ pub fn add_google_data<S: Storage, A: Api, Q: Querier>(
     for (name, b) in buckets {
         b.store(&mut deps.storage, &name)?;
     }
+
+    let res = HotSpots::from_vec(
+        cluster(&trie, 6, 10)
+            .into_iter()
+            .map(|kv| HotSpot {
+                geo_location: kv.0,
+                power: kv.1,
+            })
+            .collect(),
+    );
+
+    res.store(&mut deps.storage)?;
 
     trie.store(&mut deps.storage)?;
 
@@ -149,7 +195,7 @@ impl ToString for KeyVal {
     }
 }
 
-pub fn cluster(t: &MyTrie, depth: usize, zones: usize) -> Vec<KeyVal> {
+pub fn cluster(t: &RecursiveTrie, depth: usize, zones: usize) -> Vec<KeyVal> {
     let mut hmap = HashMap::<String, u32>::new();
     let mut commons: Vec<KeyVal> = vec![];
 
@@ -170,10 +216,6 @@ pub fn cluster(t: &MyTrie, depth: usize, zones: usize) -> Vec<KeyVal> {
     commons
 }
 
-fn store_geohash(mytrie: &mut MyTrie, hash: String) {
-    if let Some(val) = mytrie.0.get_mut(&hash) {
-        *val += 1;
-    } else {
-        mytrie.0.insert(hash, 1);
-    }
+fn store_geohash(mytrie: &mut RecursiveTrie, hash: String) {
+    mytrie.insert(hash, 1)
 }

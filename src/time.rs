@@ -1,6 +1,6 @@
 use crate::bucket::{Bucket, Pointer, Pointers, ONE_DAY};
 use crate::msg::QueryAnswer;
-use crate::trie::MyTrie;
+use crate::trie::RecursiveTrie;
 use cosmwasm_std::{
     to_binary, Api, Env, Extern, HandleResponse, Querier, QueryResult, StdResult, Storage,
 };
@@ -33,7 +33,7 @@ pub fn new_day<S: Storage, A: Api, Q: Querier>(
     bucket.store(&mut deps.storage, &old_day.bucket)?;
     pointers.insert(new_day);
 
-    let mut trie = MyTrie::load(&deps.storage)?;
+    let mut trie = RecursiveTrie::load(&deps.storage)?;
 
     // might be better to create a trie per day, and aggregate it instead of doing it like this?
     // either way this only happens once per day, so might be acceptable to take a little more time

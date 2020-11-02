@@ -5,6 +5,7 @@ import math
 TWO_WEEKS = 2070000000
 START_TIME = 1600129528950
 
+
 def randomGeo(center, radius):
     y0 = center['latitude']
     x0 = center['longitude']
@@ -20,20 +21,24 @@ def randomGeo(center, radius):
 
     timestamp = random.randrange(START_TIME, START_TIME + TWO_WEEKS)
 
-    return {'latitudeE7': int((y + y0) * 10e7),
-            'longitudeE7': int((x + x0) * 10e7),
+    return {'latitudeE7': int((y + y0) * 1e7),
+            'longitudeE7': int((x + x0) * 1e7),
             'timestampMs': str(timestamp)}
 
 
 def do():
-    big = 3000000
-    pts = []
-    center = {'latitude': 13.4050, 'longitude': 52.5200}
-    for _ in range(big):
-        pts.append(randomGeo(center, 10000))
+    big = 100000
 
-    with open("points4.json", "+w") as f:
-        f.write(json.dumps(pts))
+    center = {'latitude': 52.5200, 'longitude': 13.4050}
+    for i in range(100):
+        pts = []
+        for _ in range(big):
+            pts.append(randomGeo(center, 10000))
+
+        msg = {'import_google_locations': {'data': {"locations": pts}}}
+
+        with open(f"data/points{i}.json", "+w") as f:
+            f.write(json.dumps(msg))
 
 
 if __name__ == '__main__':
