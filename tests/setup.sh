@@ -35,13 +35,13 @@ address=${addr:1:45}
 
 docker cp "$data_file" "$docker_name:/data.json"
 
-for i in {0..9}
+for i in {0..40}
 do
   data_file="data/points$i.json"
   echo "Uploading data... $i"
   docker cp "$data_file" "$docker_name:/data.json"
   export STORE_TX_HASH=$(
-        docker exec -it secretdev secretcli tx compute execute --label $label --file /data.json --from a --gas 900000000 -y |
+        docker exec -it secretdev secretcli tx compute execute --label $label --file /data.json --from a --gas 9000000000 -y |
         jq -r .txhash
   )
 

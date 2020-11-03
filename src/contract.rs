@@ -1,17 +1,16 @@
 use crate::bucket::initialize_buckets;
-use crate::data::{add_data_points, add_google_data, cluster, match_data_point, HotSpots};
-use crate::msg::{HandleMsg, HotSpot, InitMsg, QueryAnswer, QueryMsg};
+use crate::data::{add_google_data, match_data_point};
+use crate::hotspotmap::HotSpots;
+use crate::msg::{HandleMsg, InitMsg, QueryAnswer, QueryMsg};
 use crate::state::{config, config_read, State};
 use crate::time::{new_day, query_dates};
-use crate::trie::RecursiveTrie;
 use cosmwasm_std::{
     to_binary, Api, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryResult,
     StdError, StdResult, Storage,
 };
-use serde::{Deserialize, Serialize};
 
-const DEFAULT_ZONES: u32 = 10;
-const DEFAULT_DEPTH: u32 = 7;
+// const DEFAULT_ZONES: u32 = 10;
+// const DEFAULT_DEPTH: u32 = 7;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -45,7 +44,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::AddAdmin { address } => add_admin(deps, env, address),
         HandleMsg::RemoveAdmin { address } => remove_admin(deps, env, address),
-        HandleMsg::AddDataPoints { data_points } => add_data_points(deps, env, data_points),
         HandleMsg::NewDay {} => new_day(deps, env),
         HandleMsg::ImportGoogleLocations { data } => add_google_data(deps, env, data),
     }
@@ -61,22 +59,13 @@ pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryM
 
 pub fn hotspots<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    accuracy: Option<u32>,
-    zones: Option<u32>,
+    _accuracy: Option<u32>,
+    _zones: Option<u32>,
 ) -> QueryResult {
-    //let trie = RecursiveTrie::load(&deps.storage)?;
-
-    let depth = accuracy.unwrap_or(DEFAULT_DEPTH) as usize;
-    let zone_num = zones.unwrap_or(DEFAULT_ZONES) as usize;
+    // let depth = accuracy.unwrap_or(DEFAULT_DEPTH) as usize;
+    // let zone_num = zones.unwrap_or(DEFAULT_ZONES) as usize;
 
     let res = HotSpots::load(&deps.storage)?;
-    // let res: Vec<HotSpot> = cluster(&trie, depth, zone_num)
-    //     .into_iter()
-    //     .map(|kv| HotSpot {
-    //         geo_location: kv.0,
-    //         power: kv.1,
-    //     })
-    //     .collect();
 
     return to_binary(&QueryAnswer::HotSpotResponse { hot_spots: res.0 });
 }

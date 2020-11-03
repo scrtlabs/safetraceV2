@@ -1,5 +1,5 @@
 use crate::bucket::GeoLocationTime;
-use crate::data::{ghash, KeyVal};
+use crate::data::ghash;
 use cosmwasm_std::{HumanAddr, StdError, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,6 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    AddDataPoints { data_points: Vec<GeoLocationTime> },
     ImportGoogleLocations { data: GoogleTakeoutHistory },
     NewDay {},
     AddAdmin { address: HumanAddr },
@@ -42,19 +41,10 @@ pub enum QueryAnswer {
     DateRange { from: u64, to: u64 },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug, JsonSchema)]
 pub struct HotSpot {
     pub geo_location: String,
     pub power: u32,
-}
-
-impl From<KeyVal> for HotSpot {
-    fn from(that: KeyVal) -> Self {
-        Self {
-            geo_location: that.0,
-            power: that.1,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

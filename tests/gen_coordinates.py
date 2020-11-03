@@ -29,12 +29,12 @@ def randomGeo(center, radius):
 def do():
 
     big = 100000
-
+    # berlin
     center = {'latitude': 52.5200, 'longitude': 13.4050}
-    for i in range(10):
+    for i in range(30):
         pts = []
         for _ in range(big):
-            pts.append(randomGeo(center, 10000))
+            pts.append(randomGeo(center, 10000))  # 10 km radius
 
         msg = {'import_google_locations': {'data': {"locations": pts}}}
 

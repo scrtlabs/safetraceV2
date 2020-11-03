@@ -1,10 +1,10 @@
 mod bucket;
 pub mod contract;
 mod data;
+mod hotspotmap;
 pub mod msg;
-mod trie;
-mod time;
 mod state;
+mod time;
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
