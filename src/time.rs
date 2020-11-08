@@ -1,6 +1,7 @@
-use crate::bucket::{Bucket, Pointer, Pointers, ONE_DAY};
+use crate::bucket::DailyBucket;
 use crate::hotspotmap::HotspotMap;
 use crate::msg::QueryAnswer;
+use crate::pointer::{Pointer, Pointers, ONE_DAY};
 use cosmwasm_std::{
     to_binary, Api, Env, Extern, HandleResponse, Querier, QueryResult, StdResult, Storage,
 };
@@ -21,7 +22,7 @@ pub fn new_day<S: Storage, A: Api, Q: Querier>(
     let mut pointers = Pointers::load(&deps.storage)?;
 
     let old_day = pointers.pop().unwrap();
-    let old_bucket = Bucket::load(&deps.storage, &old_day.bucket)?;
+    let old_bucket = DailyBucket::load(&deps.storage, &old_day.bucket)?;
 
     let new_day = Pointer {
         start_time: pointers.first().unwrap().end_time,
@@ -29,7 +30,7 @@ pub fn new_day<S: Storage, A: Api, Q: Querier>(
         bucket: old_day.bucket,
     };
 
-    let bucket = Bucket::default();
+    let bucket = DailyBucket::default();
     bucket.store(&mut deps.storage, &old_day.bucket)?;
     pointers.insert(new_day);
 

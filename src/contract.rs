@@ -1,5 +1,5 @@
 use crate::bucket::initialize_buckets;
-use crate::data::{add_google_data, match_data_point};
+use crate::data::{import_location_data, match_data_point};
 use crate::hotspotmap::HotSpots;
 use crate::msg::{HandleMsg, InitMsg, QueryAnswer, QueryMsg};
 use crate::state::{config, config_read, State};
@@ -9,9 +9,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-// const DEFAULT_ZONES: u32 = 10;
-// const DEFAULT_DEPTH: u32 = 7;
-
+/// Initialize the contract with the start time, and the contract administrator
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -23,6 +21,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     config(&mut deps.storage).save(&state)?;
 
+    // initialize data buckets
     initialize_buckets(&mut deps.storage, msg.start_time)?;
 
     Ok(InitResponse::default())
@@ -41,17 +40,22 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
+    // see msg.rs for more details
     match msg {
+        // add an admin
         HandleMsg::AddAdmin { address } => add_admin(deps, env, address),
+        // remove an admin
         HandleMsg::RemoveAdmin { address } => remove_admin(deps, env, address),
+        // signal that a day has passed
         HandleMsg::NewDay {} => new_day(deps, env),
-        HandleMsg::ImportGoogleLocations { data } => add_google_data(deps, env, data),
+        // import new geolocation data
+        HandleMsg::ImportGoogleLocations { data } => import_location_data(deps, env, data),
     }
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
-        QueryMsg::MatchDataPoint { data_point } => match_data_point(deps, data_point),
+        QueryMsg::MatchDataPoints { data_points } => match_data_point(deps, data_points),
         QueryMsg::HotSpot { accuracy, zones } => hotspots(deps, accuracy, zones),
         QueryMsg::TimeRange {} => query_dates(deps),
     }
@@ -62,9 +66,6 @@ pub fn hotspots<S: Storage, A: Api, Q: Querier>(
     _accuracy: Option<u32>,
     _zones: Option<u32>,
 ) -> QueryResult {
-    // let depth = accuracy.unwrap_or(DEFAULT_DEPTH) as usize;
-    // let zone_num = zones.unwrap_or(DEFAULT_ZONES) as usize;
-
     let res = HotSpots::load(&deps.storage)?;
 
     return to_binary(&QueryAnswer::HotSpotResponse { hot_spots: res.0 });
@@ -112,7 +113,7 @@ mod tests {
     use serde_json;
 
     use crate::contract::init;
-    use crate::data::add_google_data;
+    use crate::data::import_location_data;
     use crate::msg::HandleMsg::ImportGoogleLocations;
     use crate::msg::InitMsg;
 

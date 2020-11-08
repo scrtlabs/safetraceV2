@@ -7,12 +7,22 @@ use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::geohash::{neighbors, GeoLocationTime};
+use crate::pointer::{Pointer, Pointers, ONE_DAY};
+
 use self::BucketName::*;
 
-pub static ONE_DAY: u64 = 1000 * 60 * 60 * 24;
-pub static POINTERS_KEY: &[u8] = b"pointers";
 pub static BUCKETS_KEY: &[u8] = b"buckets";
-//pub static RESERVED: usize = 10;
+
+/// `DailyBucket` stores all the geolocation data for a single day. It is not aware of any limits
+/// itself. That is handled by the `Pointer` struct, which we use to select the appropriate bucket
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct DailyBucket {
+    // optionally - store by time->location. Ends up requiring much more storage, since time resolution
+    // is higher than location resolution. Storing in a BTreeMap makes searching for time ranges easier.
+    // pub locations: BTreeMap<u64, Locations>,
+    pub locations: HashMap<String, Times>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub enum BucketName {
@@ -30,7 +40,6 @@ pub enum BucketName {
     Twelve,
     Thirteen,
     Fourteen,
-    //Extra,
 }
 
 impl BucketName {
@@ -65,9 +74,6 @@ impl Into<&[u8]> for BucketName {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Locations(pub Vec<GeoLocationTime>);
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Times(pub Vec<u64>);
 
 impl Default for Times {
@@ -78,42 +84,7 @@ impl Default for Times {
     }
 }
 
-impl Default for Locations {
-    fn default() -> Self {
-        let this: Vec<GeoLocationTime> = vec![];
-
-        return Self { 0: this };
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GeoLocationTime {
-    pub geohash: String,
-    pub timestamp_ms: u64,
-}
-
-impl GeoLocationTime {
-    pub fn is_valid(&self) -> bool {
-        true
-    }
-}
-
-// Structs
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct Pointer {
-    pub start_time: u64,
-    pub end_time: u64,
-    pub bucket: BucketName,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct Bucket {
-    //pub locations: BTreeMap<u64, Locations>,
-    pub locations: HashMap<String, Times>,
-    //pub hotzones: Vec<KeyVal>,
-}
-
-impl Bucket {
+impl DailyBucket {
     pub fn store<S: Storage>(&self, store: &mut S, id: &BucketName) -> StdResult<()> {
         let mut config_store = PrefixedStorage::new(BUCKETS_KEY, store);
         let as_bytes = bincode2::serialize(&self)
@@ -142,84 +113,56 @@ impl Bucket {
         entry.0.push(geotime.timestamp_ms);
     }
 
-    pub fn match_pos(&self, ghash: &String, time: u64, period: u64) -> bool {
+    fn _does_time_overlap(&self, ghash: &String, time: u64, period: u64) -> bool {
         if let Some(times) = self.locations.get(ghash) {
+            // if we have data points for this location, check if the time overlaps, as well
             for t in &times.0 {
-                if &time > t && time < t + period {
+                if &time >= t && time <= t + period {
+                    // if match, no need to look any further
                     return true;
                 }
             }
         }
         return false;
     }
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct Pointers(pub Vec<Pointer>);
-
-impl Pointers {
-    pub fn store<S: Storage>(&self, store: &mut S) -> StdResult<()> {
-        let mut config_store = PrefixedStorage::new(POINTERS_KEY, store);
-        let as_bytes = bincode2::serialize(&self)
-            .map_err(|_| StdError::generic_err("Error serializing pointers"))?;
-
-        config_store.set(POINTERS_KEY, &as_bytes);
-
-        Ok(())
-    }
-
-    pub fn load<S: Storage>(store: &S) -> StdResult<Self> {
-        let config_store = ReadonlyPrefixedStorage::new(POINTERS_KEY, store);
-        if let Some(temp) = config_store.get(POINTERS_KEY) {
-            let ptrs: Self = bincode2::deserialize(&temp)
-                .map_err(|_| StdError::generic_err("Error deserializing pointers"))?;
-            return Ok(ptrs);
+    pub fn match_pos(&self, ghash: &String, time: u64, period: u64) -> StdResult<bool> {
+        // test our initial data point
+        if self._does_time_overlap(ghash, time, period) {
+            return Ok(true);
         }
 
-        Ok(Self::default())
-    }
+        // find all geohash neighbors - possible optimizations:
+        //     use integer geohashes
+        //     a more optimized geohash curve
+        //     for even more accuracy haversine distance can be used, but that requires storing
+        // coordinates as well
+        let positions = neighbors(ghash)?;
 
-    pub fn find_bucket(&self, time: u64) -> Option<BucketName> {
-        for p in &self.0 {
-            if time >= p.start_time && time <= p.end_time {
-                return Some(p.bucket);
+        // test all the neighbors of our geohash (since overlap may also be on the limits of the hash)
+        for pos in positions {
+            if self._does_time_overlap(&pos, time, period) {
+                return Ok(true);
             }
         }
-        None
-    }
-
-    pub fn sort(&mut self) {
-        self.0
-            .sort_unstable_by(|a, b| a.start_time.cmp(&b.start_time))
-    }
-
-    pub fn pop(&mut self) -> Option<Pointer> {
-        self.0.pop()
-    }
-
-    pub fn insert(&mut self, ptr: Pointer) {
-        self.0.push(ptr);
-        self.sort();
-    }
-
-    pub fn first(&self) -> Option<&Pointer> {
-        self.0.first()
-    }
-
-    pub fn last(&self) -> Option<&Pointer> {
-        self.0.last()
+        return Ok(false);
     }
 }
 
-pub fn load_all_buckets<S: Storage>(store: &S) -> StdResult<HashMap<BucketName, Bucket>> {
-    let mut map = HashMap::<BucketName, Bucket>::default();
+/// Load all our buckets at once for convenience when we know we will most likely need all of
+/// them
+pub fn load_all_buckets<S: Storage>(store: &S) -> StdResult<HashMap<BucketName, DailyBucket>> {
+    let mut map = HashMap::<BucketName, DailyBucket>::default();
     for name in BucketName::iterator() {
-        map.insert(name.clone(), Bucket::load(store, name)?);
+        map.insert(name.clone(), DailyBucket::load(store, name)?);
     }
 
     Ok(map)
 }
 
+/// Initialize our buckets, according to a specific start time (time since epoch in milliseconds),
+/// which will be the earliest allowed timestamp for data in our buckets.
+/// The last allowed timestamp will be 14 * `ONE_DAY`
 pub fn initialize_buckets<S: Storage>(store: &mut S, start_time: u64) -> StdResult<()> {
     let mut cur_time = start_time;
     let mut pointers = Pointers::default();
@@ -235,3 +178,14 @@ pub fn initialize_buckets<S: Storage>(store: &mut S, start_time: u64) -> StdResu
     }
     pointers.store(store)
 }
+
+// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+// pub struct Locations(pub Vec<GeoLocationTime>);
+//
+// impl Default for Locations {
+//     fn default() -> Self {
+//         let this: Vec<GeoLocationTime> = vec![];
+//
+//         return Self { 0: this };
+//     }
+// }

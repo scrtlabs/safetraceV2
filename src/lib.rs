@@ -1,8 +1,10 @@
 mod bucket;
 pub mod contract;
 mod data;
+mod geohash;
 mod hotspotmap;
 pub mod msg;
+pub mod pointer;
 mod state;
 mod time;
 

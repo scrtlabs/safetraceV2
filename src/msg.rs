@@ -1,9 +1,10 @@
-use crate::bucket::GeoLocationTime;
-use crate::data::ghash;
+use std::convert::TryInto;
+
 use cosmwasm_std::{HumanAddr, StdError, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
+
+use crate::geohash::{ghash, GeoLocationTime};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -13,30 +14,44 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
+    /// Adds new data to the contract, in the format specified by `GoogleTakeoutHistory`.
     ImportGoogleLocations { data: GoogleTakeoutHistory },
+    /// NewDay is used to signal the contract that a day has passed, and all the oldest data,
+    /// which pertains to 14 days ago is now invalid, and should be removed. This function may take
+    /// a while, depending on how much data is stored in the contract
     NewDay {},
+    /// Admins have permissions to import data and invalidate old data
+    /// This function adds a new admin which can manage the contract
     AddAdmin { address: HumanAddr },
+    /// Admins have permissions to import data and invalidate old data
+    /// This function removes an admin. Any admin can remove and other admin -
+    /// consider customizing this functionality according to access control policies
     RemoveAdmin { address: HumanAddr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // GetCount returns the current count as a json-encoded number
-    MatchDataPoint {
-        data_point: Vec<GeoLocationTime>,
-    },
+    /// This query returns all the data points from the input which overlap with data stored
+    /// in the contract. Aka, all the points that overlap in both location and time, to the accuracy
+    /// defined by the contract (10 meter/5 minutes by default)
+    MatchDataPoints { data_points: Vec<GoogleLocation> },
+    /// This query returns the 10 most active zone, accurate to about a ~70m radius
     HotSpot {
+        /// unused
         accuracy: Option<u32>,
+        /// unused
         zones: Option<u32>,
     },
+    /// Returns the earliest and latest times allowed by the contract for data storage
     TimeRange {},
 }
 
+/// General structure for query responses. All responses are returned as snake_case JSON objects
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryAnswer {
-    OverLap { data_ponts: Vec<GeoLocationTime> },
+    Overlap { data_points: Vec<GeoLocationTime> },
     HotSpotResponse { hot_spots: Vec<HotSpot> },
     DateRange { from: u64, to: u64 },
 }
