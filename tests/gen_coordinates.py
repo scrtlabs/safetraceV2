@@ -2,7 +2,7 @@ import json
 import random
 import math
 
-TWO_WEEKS = 2070000000
+TWO_WEEKS = 1209600000  #
 START_TIME = 1600129528950
 
 

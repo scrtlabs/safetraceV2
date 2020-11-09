@@ -202,9 +202,8 @@ impl HotspotMap {
             if let Some(zone) = self._get_mut_hotzone_by_hash(&ghash) {
                 zone.power = count;
             }
-        }
-
-        if !self._in_hotzones(&ghash) && count > self.hotzones.last().unwrap().power {
+            self.hotzones.sort_unstable_by(|a, b| b.cmp(a));
+        } else if !self._in_hotzones(&ghash) && count > self.hotzones.last().unwrap().power {
             let _ = self.hotzones.pop();
             self.hotzones.push(HotSpot {
                 geo_location: ghash,

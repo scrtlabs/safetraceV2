@@ -16,10 +16,10 @@ pub struct InitMsg {
 pub enum HandleMsg {
     /// Adds new data to the contract, in the format specified by `GoogleTakeoutHistory`.
     ImportGoogleLocations { data: GoogleTakeoutHistory },
-    /// NewDay is used to signal the contract that a day has passed, and all the oldest data,
+    /// ChangeDay is used to signal the contract that a day has passed, and all the oldest data,
     /// which pertains to 14 days ago is now invalid, and should be removed. This function may take
     /// a while, depending on how much data is stored in the contract
-    NewDay {},
+    ChangeDay {},
     /// Admins have permissions to import data and invalidate old data
     /// This function adds a new admin which can manage the contract
     AddAdmin { address: HumanAddr },

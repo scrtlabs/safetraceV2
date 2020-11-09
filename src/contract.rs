@@ -47,7 +47,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         // remove an admin
         HandleMsg::RemoveAdmin { address } => remove_admin(deps, env, address),
         // signal that a day has passed
-        HandleMsg::NewDay {} => new_day(deps, env),
+        HandleMsg::ChangeDay {} => new_day(deps, env),
         // import new geolocation data
         HandleMsg::ImportGoogleLocations { data } => import_location_data(deps, env, data),
     }

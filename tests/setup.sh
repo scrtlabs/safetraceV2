@@ -35,7 +35,7 @@ address=${addr:1:45}
 
 docker cp "$data_file" "$docker_name:/data.json"
 
-for i in {0..40}
+for i in {0..3}
 do
   data_file="data/points$i.json"
   echo "Uploading data... $i"
