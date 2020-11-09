@@ -197,6 +197,12 @@ impl HotspotMap {
         } else {
             count = self.locations.insert(ghash.clone(), 1).unwrap_or(1);
         }
+        // if this value is already in hotzone, update it
+        if self._in_hotzones(&ghash) {
+            if let Some(zone) = self._get_mut_hotzone_by_hash(&ghash) {
+                zone.power = count;
+            }
+        }
 
         if !self._in_hotzones(&ghash) && count > self.hotzones.last().unwrap().power {
             let _ = self.hotzones.pop();
