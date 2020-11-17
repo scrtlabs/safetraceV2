@@ -75,6 +75,7 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 [[package]]
 name = "cosmwasm-std"
 version = "0.10.0"
+source = "git+https://github.com/enigmampc/SecretNetwork?branch=safetrace#1ce2179d2344de917256be420f1195743b98b9c1"
 dependencies = [
  "base64",
  "schemars",
@@ -86,6 +87,7 @@ dependencies = [
 [[package]]
 name = "cosmwasm-storage"
 version = "0.10.0"
+source = "git+https://github.com/enigmampc/SecretNetwork?branch=safetrace#1ce2179d2344de917256be420f1195743b98b9c1"
 dependencies = [
  "cosmwasm-std",
  "serde",
@@ -306,9 +308,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.57"
+version = "1.0.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "164eacbdb13512ec2745fb09d51fd5b22b0d65ed294a1dcf7285a360c80a675c"
+checksum = "dcac07dbffa1c65e7f816ab9eba78eb142c6d44410f4eeba1e26e4f5dfa56b95"
 dependencies = [
  "itoa",
  "ryu",
