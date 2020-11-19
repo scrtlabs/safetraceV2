@@ -41,8 +41,6 @@ Future work may include other features, such as:
 
 ## System Architecture
 
-![image](docs/diagrams/overview.png)
-
 The core of this repo is the blockchain infrastructure, and secret contract application
 that performs the handling of data and business logic. We aim not to provide a full implementation 
 including a UI, but rather a reference so that others may use this as an example, integrate, and build on 
