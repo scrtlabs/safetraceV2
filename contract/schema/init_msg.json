@@ -3,12 +3,13 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "count"
+    "start_time"
   ],
   "properties": {
-    "count": {
+    "start_time": {
       "type": "integer",
-      "format": "int32"
+      "format": "uint64",
+      "minimum": 0.0
     }
   }
 }

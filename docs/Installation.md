@@ -1,8 +1,4 @@
-# SGX-enabled Secret Node in Docker
-
-So you don't want to fiddle with the .deb file, and just want to run your node? We got you, with this quick and easy guide to getting a node started without much tinkering.
-
-This guide will help you set up a node, but you will need to maintain it, or change the default setup. We recommend being familiar with Linux, docker, and docker-compose.
+# SGX-enabled Safetrace capable Secret Node in Docker
 
 The scripts in the guide will be for Linux (tested on Ubuntu 18.04), but you could get this working on Windows if you swing that way too.
 
@@ -27,7 +23,7 @@ Refer to https://ark.intel.com/content/www/us/en/ark.html#@Processors if unsure 
 
 ### 0. Step up SGX on your local machine
 
-See instructions [here](../validators-and-full-nodes/setup-sgx.md)
+See instructions [here](./setup-sgx.md)
 
 ### 1. Make sure you have the SGX device installed
 
@@ -78,6 +74,8 @@ chmod -R -f 777 /tmp/aesmd || sudo chmod -R -f 777 /tmp/aesmd || true
 
 ### 4. Create the docker-compose file `docker-compose.yaml`
 
+Use the docker-compose file from [here](../blockchain/docker-compose.yaml)
+
 Edit the path under `devices` to match to your device from step 1
 
 ```yaml
@@ -93,7 +91,8 @@ services:
     stdin_open: true
     tty: true
 
-  node:
+  safetrace:
+    container_name: safetrace
     image: enigmampc/secret-network-safetrace:latest
     devices:
       - /dev/isgx
@@ -113,6 +112,7 @@ services:
       - "26656:26656"
       - "26657:26657"
 ```
+
 
 NOTE: If you want to persist the node beyond a reboot, change the paths
 
@@ -142,8 +142,8 @@ After creating the machine a healthy status of the node will have 2 containers a
 
 ```
 CONTAINER ID        IMAGE                                      COMMAND                  CREATED             STATUS                    PORTS                                  NAMES
-bf9ba8dd0802        enigmampc/secret-network-safetrace:latest   "/bin/bash startup.sh"   13 minutes ago      Up 13 minutes (healthy)   0.0.0.0:26656-26657->26656-26657/tcp   secret-node_node_1
-2405b23aa1bd        cashmaney/aesm                             "/bin/sh -c './aesm_…"   13 minutes ago      Up 13 minutes                                                    secret-node_aesm_1
+bf9ba8dd0802        enigmampc/secret-network-safetrace:latest   "/bin/bash startup.sh"   13 minutes ago      Up 13 minutes (healthy)   0.0.0.0:26656-26657->26656-26657/tcp   safetrace
+2405b23aa1bd        enigmampc/aesm                             "/bin/sh -c './aesm_…"   13 minutes ago      Up 13 minutes                                                    secret-node_aesm_1
 ```
 
 TODO: the blocks running
@@ -153,27 +153,40 @@ TODO: the blocks running
 We recommend setting the following aliases, which will allow you to transparently use the `secretd` and `secretcli` commands from the host (rather than having to exec into the container)
 
 ```
-echo 'alias secretcli="docker exec -it secret-node_node_1 secretcli"' >> $HOME/.bashrc
-echo 'alias secretd="docker exec -it secret-node_node_1 secretd"' >> $HOME/.bashrc
+echo 'alias secretcli="docker exec -it safetrace secretcli"' >> $HOME/.bashrc
+echo 'alias secretd="docker exec -it safetrace secretd"' >> $HOME/.bashrc
 ```
 
 Where `secret-node_node_1` should be the name of the node container (may be different on your machine, you can check with `docker ps`)
 
 ### 7. Deploy Secret Contract
 
-You can either use the cli inside the docker container, or an external CLI which you  
+You can either use the cli inside the docker container, an external CLI, or secretJS programmatically  
 
-```
-secretcli config chain-id enigma-pub-testnet-3
-secretcli config output json
-secretcli config indent true
-secretcli config trust-node true
-secretcli config node tcp://<ip or hostname>:26657
-```
+#### From inside the safetrace container
 
-Send yourself some funds
+Copy the contract to the container:
 
-```secretcli tx compute store contract.wasm.gz --from a --gas 2000000 -b block -y```
+```docker cp safetrace.wasm.gz safetrace:/root/```
+
+Store the contract:
+
+```docker exec -it safetrace secretcli tx compute store /root/contract.wasm.gz --from a --gas 2000000 -b block -y```
+
+#### From external CLI
+
+Create new key:
+
+```./secretcli keys add <key_name>```
+
+Send yourself some scrt as currency to perform computations:
+
+```docker exec safetrace secretcli tx keys list```
+```docker exec safetrace secretcli tx send <container address> <local address> 1000000000000uscrt```
+
+Store the contract:
+
+```./secretcli tx compute store /root/contract.wasm.gz --from <key_name> --gas 2000000 -b block -y```
 
 
 ### 8. Troubleshooting

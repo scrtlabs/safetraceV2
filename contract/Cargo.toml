@@ -43,3 +43,6 @@ rust_decimal = { version = "1.8.1" }
 serde_json = { version = "1.0.59" }
 geohash = "0.10.0"
 radix_trie = { version = "0.2", features = ["serde"]}
+
+[dev-dependencies]
+cosmwasm-schema = "0.12.0"

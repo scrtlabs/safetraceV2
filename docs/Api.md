@@ -1,3 +1,8 @@
+## API
+
+### Handle
+
+```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HandleMsg",
@@ -121,3 +126,133 @@
     }
   }
 }
+
+```
+
+### Query
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "anyOf": [
+    {
+      "description": "This query returns all the data points from the input which overlap with data stored in the contract. Aka, all the points that overlap in both location and time, to the accuracy defined by the contract (10 meter/5 minutes by default)",
+      "type": "object",
+      "required": [
+        "match_data_points"
+      ],
+      "properties": {
+        "match_data_points": {
+          "type": "object",
+          "required": [
+            "data_points"
+          ],
+          "properties": {
+            "data_points": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/GoogleLocation"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "This query returns the 10 most active zone, accurate to about a ~70m radius",
+      "type": "object",
+      "required": [
+        "hot_spot"
+      ],
+      "properties": {
+        "hot_spot": {
+          "type": "object",
+          "properties": {
+            "accuracy": {
+              "description": "unused",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "zones": {
+              "description": "unused",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Returns the earliest and latest times allowed by the contract for data storage",
+      "type": "object",
+      "required": [
+        "time_range"
+      ],
+      "properties": {
+        "time_range": {
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "GoogleLocation": {
+      "type": "object",
+      "required": [
+        "latitudeE7",
+        "longitudeE7",
+        "timestampMs"
+      ],
+      "properties": {
+        "latitudeE7": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "longitudeE7": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "timestampMs": {
+          "$ref": "#/definitions/Uint128"
+        }
+      }
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
+
+```
+
+### Init
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "start_time"
+  ],
+  "properties": {
+    "start_time": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}
+
+```

@@ -54,3 +54,4 @@ result=$(docker exec -it "$docker_name" secretcli q compute query "$address" '{"
 
 echo "$result"
 echo "Deployed at address: $address"
+
