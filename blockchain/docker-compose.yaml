@@ -1,1 +1,34 @@
-TBD
+version: '3'
+
+services:
+  aesm:
+    image: enigmampc/aesm
+    devices:
+      - /dev/sgx
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+    stdin_open: true
+    tty: true
+    environment:
+      - http_proxy
+      - https_proxy
+
+  bootstrap:
+    image: enigmampc/secret-network-safetrace:latest
+    container_name: bootstrap
+    depends_on:
+      - aesm
+    devices:
+      - /dev/sgx
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+      - /tmp/secretd:/root/.secretd
+      - /tmp/secretcli:/root/.secretcli
+    stdin_open: true
+    tty: true
+    environment:
+      - http_proxy
+      - https_proxy
+    ports:
+      - "26656:26656"
+      - "26657:26657"
