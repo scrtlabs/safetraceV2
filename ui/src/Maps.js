@@ -42,7 +42,7 @@ export const MyMapComponent = compose(
          * The key "AIzaSyBkNaAGLEVq0YLQMi-PYEMabFeREadYe1Q" can be ONLY used in this sandbox (no forked).
          */
         googleMapURL:
-            "https://maps.googleapis.com/maps/api/js?key=AIzaSyBpNyXz1oF4wc2DYHmd6FEfUR6csBddos8&v=3.exp&libraries=geometry,drawing,places",
+            "https://maps.googleapis.com/maps/api/js?key=<YOUR_KEY_HERE>&v=3.exp&libraries=geometry,drawing,places",
         loadingElement: <div style={{ height: `100%` }} />,
         containerElement: <div style={{ height: `400px` }} />,
         mapElement: <div style={{ height: `100%` }} />,
